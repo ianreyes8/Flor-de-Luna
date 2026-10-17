@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Flor de Luna | Perfumería</title>
+  <meta name="description" content="Flor de Luna: La esencia que florece bajo la luz de la luna. Perfumes de alta calidad inspirados en tus fragancias favoritas.">
+  <meta name="color-scheme" content="light dark">
+
+  <!-- Aplica el tema guardado antes de pintar para evitar parpadeos -->
+  <script>
+    (function () {
+      try {
+        var t = localStorage.getItem('fdl_theme');
+        if (!t) t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        document.documentElement.setAttribute('data-theme', t);
+      } catch (e) { document.documentElement.setAttribute('data-theme', 'light'); }
+    })();
+  </script>
+
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Jost:wght@300;400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="estilos.css">
+</head>
+<body>
+
+  <!-- Íconos -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-search" viewBox="0 0 24 24"><circle cx="11" cy="11" r="6.5"/><path d="M20.5 20.5 16 16"/></symbol>
+    <symbol id="i-bag" viewBox="0 0 24 24"><path d="M5.5 8h13l-1 12.5h-11L5.5 8z"/><path d="M9 8V6.5a3 3 0 0 1 6 0V8"/></symbol>
+    <symbol id="i-user" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 20.5c0-3.8 3.4-6 7.5-6s7.5 2.2 7.5 6"/></symbol>
+    <symbol id="i-moon" viewBox="0 0 24 24"><path d="M20 14.5A8.5 8.5 0 0 1 9.5 4a8.5 8.5 0 1 0 10.5 10.5z"/></symbol>
+    <symbol id="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2.5v2M12 19.5v2M2.5 12h2M19.5 12h2M5.3 5.3l1.4 1.4M17.3 17.3l1.4 1.4M5.3 18.7l1.4-1.4M17.3 6.7l1.4-1.4"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6 6 18"/></symbol>
+    <symbol id="i-menu" viewBox="0 0 24 24"><path d="M4 7h16M4 12h16M4 17h16"/></symbol>
+    <symbol id="i-heart" viewBox="0 0 24 24"><path d="M12 20.5s-8-4.9-8-11A4.5 4.5 0 0 1 12 6.6 4.5 4.5 0 0 1 20 9.5c0 6.1-8 11-8 11z"/></symbol>
+    <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
+    <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="m3 3 18 18M10.6 6.2A10.8 10.8 0 0 1 12 6c6.4 0 10 6 10 6a15 15 0 0 1-3 3.6M6.2 6.2C3.5 8 2 12 2 12s3.6 6 10 6c1 0 1.9-.2 2.7-.5"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
+  </svg>
+
+  <a class="skip" href="#productos">Saltar al contenido</a>
+
+  <!-- ============ NAVBAR ============ -->
+  <header class="navbar" id="navbar">
+    <div class="container navbar__inner">
+      <a href="#inicio" class="logo" aria-label="Flor de Luna, inicio">
+        <img class="logo__image" src="Flor de luna/Logo Flor De Luna transparente.png" alt="" aria-hidden="true">
+        <span>Flor de Luna</span>
+      </a>
+
+      <nav class="menu" id="menu" aria-label="Navegación principal">
+        <a href="#inicio" data-section="inicio">Inicio</a>
+        <a href="#productos" data-section="productos">Productos</a>
+        <a href="#informacion" data-section="informacion">Información</a>
+        <a href="#contacto" data-section="contacto">Contacto</a>
+      </nav>
+
+      <div class="actions">
+        <button class="icon-btn" id="btnSearch" type="button" aria-label="Buscar por nombre" aria-expanded="false" aria-controls="searchbar">
+          <svg class="ic"><use href="#i-search"/></svg>
+        </button>
+
+        <button class="icon-btn" id="btnTheme" type="button" aria-label="Cambiar a modo oscuro" aria-pressed="false">
+          <svg class="ic ic--moon"><use href="#i-moon"/></svg>
+          <svg class="ic ic--sun"><use href="#i-sun"/></svg>
+        </button>
+
+        <button class="icon-btn" id="btnCart" type="button" aria-label="Abrir carrito" aria-expanded="false" aria-controls="cart">
+          <svg class="ic"><use href="#i-bag"/></svg>
+          <span class="badge" id="cartBadge" hidden>0</span>
+        </button>
+
+        <div class="user-wrap">
+          <button class="icon-btn" id="btnUser" type="button" aria-label="Iniciar sesión" aria-haspopup="true" aria-expanded="false">
+            <svg class="ic"><use href="#i-user"/></svg>
+            <span class="dot" id="userDot" hidden></span>
+          </button>
+          <div class="user-menu" id="userMenu" hidden>
+            <p class="user-menu__name" id="userName"></p>
+            <p class="user-menu__mail" id="userMail"></p>
+            <button type="button" id="btnOrders">Mis pedidos</button>
+            <button type="button" id="btnLogout">Cerrar sesión</button>
+          </div>
+        </div>
+
+        <button class="icon-btn burger" id="btnBurger" type="button" aria-label="Abrir menú" aria-expanded="false" aria-controls="menu">
+          <svg class="ic"><use href="#i-menu"/></svg>
+        </button>
+      </div>
+    </div>
+
+    <div class="searchbar" id="searchbar" hidden>
+      <div class="container searchbar__inner">
+        <svg class="ic" aria-hidden="true"><use href="#i-search"/></svg>
+        <input id="searchInput" type="search" placeholder="Buscar perfume por nombre…" autocomplete="off" aria-label="Buscar perfume por nombre">
+        <button class="icon-btn" id="searchClose" type="button" aria-label="Cerrar búsqueda"><svg class="ic"><use href="#i-close"/></svg></button>
+      </div>
+    </div>
+  </header>
+
+  <!-- ============ CARRITO ============ -->
+  <aside class="cart" id="cart" aria-label="Carrito de compras" hidden>
+    <div class="cart__head">
+      <h2>Bolsa de Perfumes</h2>
+      <button class="icon-btn" id="cartClose" type="button" aria-label="Cerrar carrito"><svg class="ic"><use href="#i-close"/></svg></button>
+    </div>
+    <ul class="cart__list" id="cartList"></ul>
+    <div class="cart__foot" id="cartFoot">
+      <div class="cart__row"><span>Total estimado</span><strong id="cartSubtotal">$0.00</strong></div>
+      <p class="cart__hint" id="cartHint"></p>
+      <button class="btn btn--primary btn--block" id="btnCheckout" type="button">Continuar compra</button>
+      <button class="link-btn" id="btnClearCart" type="button">Vaciar carrito</button>
+    </div>
+  </aside>
+
+  <main id="contenido">
+
+    <!-- ============ INICIO ============ -->
+    <section class="hero" id="inicio">
+      <div class="container hero__grid">
+        <div class="hero__text reveal">
+          <p class="eyebrow">Perfumería de autor</p>
+          <h1>La esencia que florece <em>bajo la luz de la luna</em></h1>
+          <p class="lead">Fragancias para dama con aromas delicados y finos, larga duración y alta calidad elaboradas como réplicas de autor para reflejar tu elegancia y personalidad.</p>
+          <div class="hero__cta">
+            <a class="btn btn--primary" href="#productos">Explorar colección</a>
+            <a class="btn btn--ghost" href="#informacion">Conocer más</a>
+          </div>
+          <ul class="hero__facts">
+            <li><strong>50ml/100ml</strong><span>presentaciones</span></li>
+            <li><strong>100%</strong><span>calidad garantizada</span></li>
+            <li><strong>Zona</strong><span>Santa Elena</span></li>
+          </ul>
+        </div>
+        <div class="hero__visual" aria-hidden="true">
+          <img class="hero__collection" src="Flor de luna/Coleccion.jpeg" alt="" fetchpriority="high">
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ PRODUCTOS ============ -->
+    <section class="section" id="productos">
+      <div class="container">
+        <header class="section__head reveal">
+          <p class="eyebrow">Colección</p>
+          <h2>Nuestras fragancias</h2>
+          <p class="muted">Elige tus presentaciones de 50 ml y 100 ml o busca por nombre con la lupa.</p>
+        </header>
+
+        <div class="filters" id="filters" role="group" aria-label="Filtrar por familia olfativa"></div>
+        <p class="result-count" id="resultCount" aria-live="polite"></p>
+
+        <div class="grid" id="grid"></div>
+
+        <div class="empty" id="empty" hidden>
+          <p class="empty__title">No encontramos coincidencias</p>
+          <p class="muted" id="emptyMsg">Prueba con otro nombre o cambia el filtro.</p>
+          <button class="btn btn--ghost" id="btnReset" type="button">Ver todos</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ INFORMACIÓN ============ -->
+    <section class="section section--soft" id="informacion">
+      <div class="container">
+        <header class="section__head reveal">
+          <p class="eyebrow">Información</p>
+          <h2>Conoce Flor de Luna</h2>
+          <p class="muted">"La esencia que florece bajo la luz de la luna."</p>
+        </header>
+
+        <div class="story reveal">
+          <div class="story__text">
+            <h3>Misión y Visión</h3>
+            <p><strong>Misión:</strong> Crear perfumes de alta calidad que permitan a nuestros clientes expresar su estilo y personalidad a través de fragancias únicas con aromas finos y elegantes, brindando experiencias sensoriales únicas y un servicio excepcional. Nuestros perfumes son elaborados como réplicas de alta calidad.</p>
+            <p><strong>Visión:</strong> Crecer en la industria de fragancias y ser conocidos nacional e internacionalmente, expandiéndonos en todo el país y comercializando nuestras fragancias a nivel global.</p>
+          </div>
+          <ul class="values">
+            <li><strong>Liderazgo (CEO)</strong><span>Dirigido por Brianna Reyes.</span></li>
+            <li><strong>Operaciones</strong><span>Katerin Núñez (Producción y Logística).</span></li>
+            <li><strong>Ventas y Marketing</strong><span>Seydi Rivas (Comercial) y Carolina Iglesias (Marketing y Finanzas).</span></li>
+          </ul>
+        </div>
+
+        <h3 class="subhead reveal">Familias olfativas y Opciones</h3>
+        <div class="families">
+          <article class="family reveal"><h4>Presentaciones</h4><p>Disponibles en frascos elegantes de 100 ml, 50 ml y prácticos tamaños de 10 ml.</p></article>
+          <article class="family reveal"><h4>Mercado Potencial</h4><p>Dirigido a mujeres de 15 a 65 años que visitan la zona de Santa Elena y siguen tendencias de moda.</p></article>
+          <article class="family reveal"><h4>Promociones</h4><p>Disfruta de ofertas especiales como 2x1 en productos seleccionados, descuentos de cumpleaños (20%) y promociones por Día de la Madre.</p></article>
+          <article class="family reveal"><h4>Competencia y Calidad</h4><p>Ofrecemos una alternativa fina y accesible frente a marcas internacionales y tiendas de prestigio.</p></article>
+        </div>
+
+        <h3 class="subhead reveal">Preguntas frecuentes</h3>
+        <div class="faq reveal">
+          <details><summary>¿Necesito una cuenta para comprar?</summary><p>Puedes explorar el catálogo y armar tu carrito libremente. Para pagar y guardar tus pedidos necesitas iniciar sesión o crear una cuenta gratis.</p></details>
+          <details><summary>¿Cuáles son los canales de atención y pedidos?</summary><p>Atendemos a través de nuestra página web, redes sociales (Facebook e Instagram) y WhatsApp Business.</p></details>
+          <details><summary>¿Dónde estamos ubicados?</summary><p>Nos encontramos en puntos estratégicos como el Centro Comercial Arcos Santa Elena, Plaza Emanuel y la exclusiva zona de la Colonia Santa Elena.</p></details>
+          <details><summary>¿De dónde provienen nuestras esencias?</summary><p>Seleccionamos las mejores esencias e insumos para garantizar una elaboración de perfumería fina y duradera.</p></details>
+        </div>
+      </div>
+    </section>
+
+    <!-- ============ CONTACTO ============ -->
+    <section class="section" id="contacto">
+      <div class="container contact">
+        <div class="contact__info reveal">
+          <p class="eyebrow">Contacto</p>
+          <h2>Hablemos de tu próximo aroma</h2>
+          <p class="muted">¿Dudas sobre una fragancia, un pedido o un regalo? Escríbenos y te responderemos pronto.</p>
+          <ul class="contact__list">
+            <li><span>Redes Sociales</span><strong>flordeluna_sv (IG / FB)</strong></li>
+            <li><span>WhatsApp Business</span><strong>+503 7606 0646</strong></li>
+            <li><span>Ubicación base</span><strong>Zona Santa Elena, El Salvador</strong></li>
+          </ul>
+        </div>
+
+        <form class="contact__form reveal" id="contactForm" novalidate>
+          <label for="cName">Nombre</label>
+          <input id="cName" type="text" autocomplete="name" required>
+          <label for="cMail">Correo electrónico</label>
+          <input id="cMail" type="email" autocomplete="email" required>
+          <label for="cMsg">Mensaje</label>
+          <textarea id="cMsg" rows="5" required></textarea>
+          <p class="form-error" id="contactError" role="alert"></p>
+          <button class="btn btn--primary" type="submit">Enviar mensaje</button>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer class="footer">
+    <div class="container footer__inner">
+      <p class="footer__brand">Flor de Luna</p>
+      <p class="muted">© <span id="year"></span> Flor de Luna. Todos los derechos reservados.</p>
+    </div>
+  </footer>
+
+  <!-- ============ MODAL: SESIÓN ============ -->
+  <dialog class="modal" id="authDialog" aria-labelledby="authTitle">
+    <div class="modal__box">
+      <button class="icon-btn modal__close" type="button" data-close aria-label="Cerrar"><svg class="ic"><use href="#i-close"/></svg></button>
+      <h2 id="authTitle">Tu cuenta</h2>
+      <p class="modal__note" id="authNote" hidden></p>
+
+      <div class="tabs" role="tablist">
+        <button type="button" role="tab" id="tabLogin" aria-selected="true" data-tab="login">Iniciar sesión</button>
+        <button type="button" role="tab" id="tabRegister" aria-selected="false" data-tab="register">Crear cuenta</button>
+      </div>
+
+      <form id="loginForm" novalidate>
+        <label for="loginEmail">Correo electrónico</label>
+        <input id="loginEmail" type="email" autocomplete="email" required>
+        <label for="loginPass">Contraseña</label>
+        <div class="password-field">
+          <input id="loginPass" type="password" autocomplete="current-password" required>
+          <button class="icon-btn password-toggle" type="button" data-password-toggle aria-label="Mostrar contraseña" aria-pressed="false" aria-controls="loginPass">
+            <svg class="ic ic--eye" aria-hidden="true"><use href="#i-eye"/></svg>
+            <svg class="ic ic--eye-off" aria-hidden="true"><use href="#i-eye-off"/></svg>
+          </button>
+        </div>
+        <p class="form-error" id="loginError" role="alert"></p>
+        <button class="btn btn--primary btn--block" type="submit">Entrar</button>
+      </form>
+
+      <form id="registerForm" hidden novalidate>
+        <label for="regName">Nombre</label>
+        <input id="regName" type="text" autocomplete="name" required>
+        <label for="regEmail">Correo electrónico</label>
+        <input id="regEmail" type="email" autocomplete="email" required>
+        <label for="regPass">Contraseña</label>
+        <div class="password-field">
+          <input id="regPass" type="password" autocomplete="new-password" required>
+          <button class="icon-btn password-toggle" type="button" data-password-toggle aria-label="Mostrar contraseña" aria-pressed="false" aria-controls="regPass">
+            <svg class="ic ic--eye" aria-hidden="true"><use href="#i-eye"/></svg>
+            <svg class="ic ic--eye-off" aria-hidden="true"><use href="#i-eye-off"/></svg>
+          </button>
+        </div>
+        <small class="hint">Mínimo 8 caracteres, con al menos una letra y un número.</small>
+        <label for="regPass2">Confirmar contraseña</label>
+        <div class="password-field">
+          <input id="regPass2" type="password" autocomplete="new-password" required>
+          <button class="icon-btn password-toggle" type="button" data-password-toggle aria-label="Mostrar contraseña" aria-pressed="false" aria-controls="regPass2">
+            <svg class="ic ic--eye" aria-hidden="true"><use href="#i-eye"/></svg>
+            <svg class="ic ic--eye-off" aria-hidden="true"><use href="#i-eye-off"/></svg>
+          </button>
+        </div>
+        <p class="form-error" id="registerError" role="alert"></p>
+        <button class="btn btn--primary btn--block" type="submit">Crear cuenta</button>
+      </form>
+    </div>
+  </dialog>
+
+  <!-- ============ MODAL: PAGO ============ -->
+  <dialog class="modal modal--wide" id="checkoutDialog" aria-labelledby="checkoutTitle">
+    <div class="modal__box">
+      <button class="icon-btn modal__close" type="button" data-close aria-label="Cerrar"><svg class="ic"><use href="#i-close"/></svg></button>
+      <h2 id="checkoutTitle">Finalizar compra</h2>
+
+      <div id="checkoutBody">
+        <ul class="summary" id="summaryList"></ul>
+        <div class="totals">
+          <div><span>Subtotal</span><span id="sumSub">$0.00</span></div>
+          <div><span>Envío</span><span id="sumShip">$0.00</span></div>
+          <div class="totals__total"><span>Total</span><strong id="sumTotal">$0.00</strong></div>
+        </div>
+
+        <form id="checkoutForm" novalidate>
+          <label for="coName">Nombre completo</label>
+          <input id="coName" type="text" autocomplete="name" required>
+          <label for="coPhone">Teléfono</label>
+          <input id="coPhone" type="tel" autocomplete="tel" required>
+          <label for="coAddress">Dirección de entrega</label>
+          <input id="coAddress" type="text" autocomplete="street-address" required>
+          <label for="coPay">Método de pago</label>
+          <select id="coPay">
+            <option>Tarjeta de crédito o débito</option>
+            <option>Pago contra entrega</option>
+            <option>Transferencia bancaria</option>
+          </select>
+          <small class="hint">Demostración: no se realiza ningún cobro y no se guardan datos de tarjeta.</small>
+          <p class="form-error" id="checkoutError" role="alert"></p>
+          <button class="btn btn--primary btn--block" type="submit">Confirmar pedido</button>
+        </form>
+      </div>
+
+      <div class="done" id="checkoutDone" hidden>
+        <svg class="done__moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 3.5A9 9 0 1 0 20.5 15 7.5 7.5 0 0 1 15.5 3.5z"/></svg>
+        <h3>¡Gracias por tu compra!</h3>
+        <p class="muted">Tu pedido <strong id="doneId"></strong> fue registrado. Te contactaremos por WhatsApp o correo para coordinar la entrega.</p>
+        <button class="btn btn--primary" type="button" data-close>Seguir explorando</button>
+      </div>
+    </div>
+  </dialog>
+
+  <!-- ============ MODAL: PEDIDOS ============ -->
+  <dialog class="modal modal--wide" id="ordersDialog" aria-labelledby="ordersTitle">
+    <div class="modal__box">
+      <button class="icon-btn modal__close" type="button" data-close aria-label="Cerrar"><svg class="ic"><use href="#i-close"/></svg></button>
+      <h2 id="ordersTitle">Mis pedidos</h2>
+      <div id="ordersList"></div>
+    </div>
+  </dialog>
+
+  <div class="toasts" id="toasts" aria-live="polite" aria-atomic="false"></div>
+
+  <script src="script.js"></script>
+</body>
+</html>
