@@ -1,6 +1,6 @@
 /* =========================================================
    Flor de Luna — lógica de la tienda
-   Nota: todo se guarda en localStorage (demo sin servidor).
+   La cuenta, el carrito, los favoritos y los pedidos se guardan en MySQL.
    ========================================================= */
 (() => {
   'use strict';
@@ -13,11 +13,27 @@
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
   const NAME_RE = /^\p{L}+(?:\s+\p{L}+)*$/u;
 
-  const K = { users: 'fdl_users', session: 'fdl_session', cart: 'fdl_cart', favs: 'fdl_favs', orders: 'fdl_orders', theme: 'fdl_theme' };
+  const K = { cart: 'fdl_cart', theme: 'fdl_theme' };
   const store = {
     get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* sin almacenamiento */ } }
   };
+  async function api(action, payload) {
+    const options = payload === undefined
+      ? { credentials: 'same-origin' }
+      : {
+          method: 'POST',
+          credentials: 'same-origin',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ action, ...payload })
+        };
+    const response = await fetch(`api/index.php${payload === undefined ? `?action=${encodeURIComponent(action)}` : ''}`, options);
+    let result;
+    try { result = await response.json(); }
+    catch { throw new Error('El servidor devolvió una respuesta no válida.'); }
+    if (!response.ok) throw new Error(result.error || 'No fue posible completar la operación.');
+    return result;
+  }
 
   /* ---------- Catálogo (Actualizado con Flor.pdf) ---------- */
   const PRODUCTS = [
@@ -55,7 +71,8 @@
   /* ---------- Estado ---------- */
   const state = {
     cart: sanitizeCart(store.get(K.cart, [])),
-    session: store.get(K.session, null),
+    user: null,
+    favorites: [],
     filter: 'Todos',
     query: ''
   };
@@ -66,6 +83,11 @@
     return raw
       .filter(i => i && byId(i.id))
       .map(i => ({ id: i.id, qty: Math.min(MAX_QTY, Math.max(1, parseInt(i.qty, 10) || 1)) }));
+  }
+  function mergeCart(saved, incoming) {
+    const merged = new Map(sanitizeCart(saved).map(item => [item.id, item.qty]));
+    sanitizeCart(incoming).forEach(item => merged.set(item.id, Math.min(MAX_QTY, (merged.get(item.id) || 0) + item.qty)));
+    return [...merged].map(([id, qty]) => ({ id, qty }));
   }
 
   /* ---------- Toasts ---------- */
@@ -93,24 +115,7 @@
   });
 
   /* ---------- Sesión ---------- */
-  const getUsers = () => store.get(K.users, []);
-  const currentUser = () => state.session ? getUsers().find(u => u.email === state.session) || null : null;
-
-  async function hashPassword(pw, salt) {
-    const data = new TextEncoder().encode(salt + ':' + pw);
-    if (window.crypto && crypto.subtle) {
-      const buf = await crypto.subtle.digest('SHA-256', data);
-      return [...new Uint8Array(buf)].map(b => b.toString(16).padStart(2, '0')).join('');
-    }
-    let h = 5381; // respaldo para contextos sin crypto.subtle
-    for (const b of data) h = ((h << 5) + h + b) >>> 0;
-    return 'x' + h.toString(16);
-  }
-  function randomSalt() {
-    const a = new Uint8Array(8);
-    crypto.getRandomValues(a);
-    return [...a].map(b => b.toString(16).padStart(2, '0')).join('');
-  }
+  const currentUser = () => state.user;
 
   const authDialog = $('#authDialog');
 
@@ -142,7 +147,7 @@
     setAuthTab(tab);
     if (!authDialog.open) authDialog.showModal();
   }
-  authDialog.addEventListener('close', () => { if (!state.session) pendingAction = null; });
+  authDialog.addEventListener('close', () => { if (!state.user) pendingAction = null; });
 
   function requireAuth(note, after) {
     if (currentUser()) { after && after(); return true; }
@@ -150,9 +155,11 @@
     return false;
   }
 
-  function startSession(user) {
-    state.session = user.email;
-    store.set(K.session, user.email);
+  async function startSession(user, data) {
+    state.user = user;
+    state.favorites = data.favorites || [];
+    state.cart = mergeCart(data.cart || [], state.cart);
+    store.set(K.cart, state.cart);
     const act = pendingAction;
     pendingAction = null;
     authDialog.close();
@@ -162,6 +169,8 @@
     renderFilters();
     renderGrid();
     toast(`¡Hola, ${user.name.split(' ')[0]}!`);
+    try { await persistCart(); }
+    catch (error) { toast(`Cuenta iniciada, pero el carrito no se sincronizó: ${error.message}`); }
     if (act) act();
   }
 
@@ -172,10 +181,10 @@
     const email = $('#loginEmail').value.trim().toLowerCase();
     const pw = $('#loginPass').value;
     if (!EMAIL_RE.test(email) || !pw) { err.textContent = 'Ingresa tu correo y tu contraseña.'; return; }
-    const user = getUsers().find(u => u.email === email);
-    const h = user ? await hashPassword(pw, user.salt) : null;
-    if (!user || h !== user.hash) { err.textContent = 'Correo o contraseña incorrectos.'; return; }
-    startSession(user);
+    try {
+      const result = await api('login', { email, password: pw });
+      await startSession(result.user, result.data);
+    } catch (error) { err.textContent = error.message; }
   });
 
   $('#registerForm').addEventListener('submit', async e => {
@@ -193,19 +202,19 @@
     if (pw.length < 8 || !/[A-Za-z]/.test(pw) || !/\d/.test(pw)) { err.textContent = 'La contraseña debe tener 8 caracteres o más, con letras y números.'; return; }
     if (pw !== pw2) { err.textContent = 'Las contraseñas no coinciden.'; return; }
 
-    const users = getUsers();
-    if (users.some(u => u.email === email)) { err.textContent = 'Ya existe una cuenta con ese correo. Prueba iniciar sesión.'; return; }
-
-    const salt = randomSalt();
-    const user = { name, email, salt, hash: await hashPassword(pw, salt) };
-    users.push(user);
-    store.set(K.users, users);
-    startSession(user);
+    try {
+      const result = await api('register', { name, email, password: pw });
+      await startSession(result.user, result.data);
+    } catch (error) { err.textContent = error.message; }
   });
 
-  function logout() {
-    state.session = null;
-    store.set(K.session, null);
+  async function logout() {
+    try { await api('logout', {}); }
+    catch (error) { toast(`No se pudo cerrar la sesión: ${error.message}`); return; }
+    state.user = null;
+    state.favorites = [];
+    state.cart = [];
+    store.set(K.cart, state.cart);
     if (state.filter === 'Favoritos') state.filter = 'Todos';
     closeUserMenu();
     renderUser();
@@ -234,22 +243,14 @@
   });
 
   /* ---------- Favoritos ---------- */
-  const getFavs = () => {
-    const u = currentUser();
-    if (!u) return [];
-    const all = store.get(K.favs, {});
-    return Array.isArray(all[u.email]) ? all[u.email] : [];
-  };
-  function toggleFav(id) {
+  const getFavs = () => state.favorites;
+  async function toggleFav(id) {
     requireAuth('Inicia sesión para guardar tus perfumes favoritos.', () => {
-      const u = currentUser();
-      const all = store.get(K.favs, {});
-      const list = new Set(all[u.email] || []);
-      if (list.has(id)) { list.delete(id); toast('Quitado de favoritos.'); }
-      else { list.add(id); toast('Guardado en favoritos.'); }
-      all[u.email] = [...list];
-      store.set(K.favs, all);
-      renderGrid();
+      api('favorite', { id }).then(result => {
+        state.favorites = result.favorites;
+        toast(result.added ? 'Guardado en favoritos.' : 'Quitado de favoritos.');
+        renderGrid();
+      }).catch(error => toast(`No se pudieron actualizar los favoritos: ${error.message}`));
     });
   }
 
@@ -359,7 +360,19 @@
   const cartCount = () => state.cart.reduce((n, i) => n + i.qty, 0);
   const cartSubtotal = () => state.cart.reduce((n, i) => n + i.qty * byId(i.id).price, 0);
   const shippingFor = sub => (sub === 0 || sub >= FREE_SHIP ? 0 : SHIP_COST);
-  const saveCart = () => store.set(K.cart, state.cart);
+  let cartSync = Promise.resolve();
+  function persistCart() {
+    if (!currentUser()) return Promise.resolve();
+    const items = state.cart.map(item => ({ id: item.id, qty: item.qty }));
+    cartSync = cartSync.catch(() => {}).then(() => api('cart', { items }));
+    return cartSync;
+  }
+  const saveCart = () => {
+    store.set(K.cart, state.cart);
+    if (currentUser()) {
+      persistCart().catch(error => toast(`No se pudo guardar el carrito: ${error.message}`));
+    }
+  };
 
   function openCart() {
     closeUserMenu();
@@ -540,7 +553,7 @@
     $('#checkoutDialog .modal__box').scrollTop = 0;
   }
 
-  $('#checkoutForm').addEventListener('submit', e => {
+  $('#checkoutForm').addEventListener('submit', async e => {
     e.preventDefault();
     const u = currentUser();
     const err = $('#checkoutError');
@@ -579,51 +592,57 @@
     }
     err.textContent = '';
 
-    const sub = cartSubtotal(), ship = shippingFor(sub);
-    const order = {
-      id: 'FDL-' + Date.now().toString(36).toUpperCase(),
-      email: u.email,
-      contactEmail: v('#coEmail'),
-      date: new Date().toISOString(),
-      items: state.cart.map(i => ({ id: i.id, name: byId(i.id).name, qty: i.qty, price: byId(i.id).price })),
-      shipping: ship,
-      total: sub + ship,
-      customer: { name: v('#coName'), phone: v('#coPhone') },
-      address: [v('#coAddress'), v('#coCity'), v('#coDept'), $('#coCountry').value].join(', '),
-      zip: v('#coZip'),
-      reference: v('#coRef'),
-      notes: v('#coNotes'),
-      pay: method /* nunca se guardan datos de tarjeta */
-    };
-    const orders = store.get(K.orders, []);
-    orders.push(order);
-    store.set(K.orders, orders);
-
-    cardFields.forEach(sel => { $(sel).value = ''; });
-    state.cart = [];
-    saveCart(); renderCart();
-    $('#doneId').textContent = order.id;
-    $('#doneMail').textContent = order.contactEmail;
-    $('#doneTotal').textContent = money(order.total);
-    $('#checkoutBody').hidden = true;
-    $('#checkoutDone').hidden = false;
-    $('#checkoutDialog .modal__box').scrollTop = 0;
+    const payment = {
+      'Tarjeta de crédito o débito': 'tarjeta',
+      'Transferencia bancaria': 'transferencia',
+      'Pago contra entrega': 'contra_entrega'
+    }[method];
+    try {
+      await persistCart();
+      const order = await api('order', {
+        email: v('#coEmail'),
+        name: v('#coName'),
+        phone: v('#coPhone'),
+        department: v('#coDept'),
+        city: v('#coCity'),
+        zip: v('#coZip'),
+        address: v('#coAddress'),
+        reference: v('#coRef'),
+        notes: v('#coNotes'),
+        payment
+      });
+      cardFields.forEach(sel => { $(sel).value = ''; });
+      state.cart = [];
+      saveCart(); renderCart();
+      $('#doneId').textContent = order.id;
+      $('#doneMail').textContent = order.email;
+      $('#doneTotal').textContent = money(order.total);
+      $('#checkoutBody').hidden = true;
+      $('#checkoutDone').hidden = false;
+      $('#checkoutDialog .modal__box').scrollTop = 0;
+    } catch (error) { err.textContent = error.message; }
   });
 
   /* ---------- Pedidos ---------- */
   const ordersDialog = $('#ordersDialog');
-  $('#btnOrders').addEventListener('click', () => {
+  $('#btnOrders').addEventListener('click', async () => {
     closeUserMenu();
     const u = currentUser();
     if (!u) return;
-    const mine = store.get(K.orders, []).filter(o => o.email === u.email).reverse();
-    $('#ordersList').innerHTML = mine.length ? mine.map(o => `
+    const list = $('#ordersList');
+    list.textContent = 'Cargando pedidos…';
+    ordersDialog.showModal();
+    try {
+      const { orders } = await api('orders');
+      list.innerHTML = orders.length ? orders.map(o => `
       <article class="order">
-        <div class="order__head"><strong>${esc(o.id)}</strong><span>${new Date(o.date).toLocaleDateString('es-SV', { day: 'numeric', month: 'long', year: 'numeric' })}</span></div>
+        <div class="order__head"><strong>${esc(o.codigo)}</strong><span>${new Date(o.fecha_pedido.replace(' ', 'T')).toLocaleDateString('es-SV', { day: 'numeric', month: 'long', year: 'numeric' })}</span></div>
         <ul>${o.items.map(i => `<li>${esc(i.name)} ×${i.qty}</li>`).join('')}</ul>
         <p class="order__total">Total: ${money(o.total)}</p>
       </article>`).join('') : '<p class="muted">Todavía no has realizado pedidos.</p>';
-    ordersDialog.showModal();
+    } catch (error) {
+      list.textContent = `No se pudieron cargar los pedidos: ${error.message}`;
+    }
   });
 
   /* ---------- Diálogos: cerrar con X o clic fuera ---------- */
@@ -631,7 +650,7 @@
 ('[data-close]').forEach(b => b.addEventListener('click', () => b.closest('dialog').close()));
 
   /* ---------- Contacto ---------- */
-  $('#contactForm').addEventListener('submit', e => {
+  $('#contactForm').addEventListener('submit', async e => {
     e.preventDefault();
     const err = $('#contactError');
     const name = $('#cName').value.trim();
@@ -641,8 +660,11 @@
     if (!EMAIL_RE.test(mail)) { err.textContent = 'Escribe un correo válido.'; return; }
     if (msg.length < 10) { err.textContent = 'Cuéntanos un poco más en tu mensaje.'; return; }
     err.textContent = '';
-    e.target.reset();
-    toast('¡Gracias! Recibimos tu mensaje y te responderemos pronto.');
+    try {
+      await api('contact', { name, email: mail, message: msg });
+      e.target.reset();
+      toast('¡Gracias! Recibimos tu mensaje y te responderemos pronto.');
+    } catch (error) { err.textContent = error.message; }
   });
 
   /* ---------- Navegación ---------- */
@@ -689,9 +711,23 @@
 
   /* ---------- Inicio ---------- */
   $('#year').textContent = new Date().getFullYear();
-  if (state.session && !currentUser()) { state.session = null; store.set(K.session, null); }
-  renderUser();
-  renderFilters();
-  renderGrid();
-  renderCart();
+  async function initialize() {
+    try {
+      const result = await api('session');
+      if (result.user) {
+        state.user = result.user;
+        state.favorites = result.data.favorites || [];
+        state.cart = mergeCart(result.data.cart || [], state.cart);
+        store.set(K.cart, state.cart);
+        await persistCart();
+      }
+    } catch (error) {
+      toast(`No se pudo conectar con MySQL: ${error.message}`);
+    }
+    renderUser();
+    renderFilters();
+    renderGrid();
+    renderCart();
+  }
+  initialize();
 })();
