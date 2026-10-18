@@ -38,7 +38,7 @@
     <symbol id="i-eye" viewBox="0 0 24 24"><path d="M2 12s3.6-6 10-6 10 6 10 6-3.6 6-10 6S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></symbol>
     <symbol id="i-eye-off" viewBox="0 0 24 24"><path d="m3 3 18 18M10.6 6.2A10.8 10.8 0 0 1 12 6c6.4 0 10 6 10 6a15 15 0 0 1-3 3.6M6.2 6.2C3.5 8 2 12 2 12s3.6 6 10 6c1 0 1.9-.2 2.7-.5"/><path d="M9.9 9.9a3 3 0 0 0 4.2 4.2"/></symbol>
   </svg>
-
+  
   <a class="skip" href="#productos">Saltar al contenido</a>
 
   <!-- ============ NAVBAR ============ -->
@@ -291,43 +291,156 @@
     </div>
   </dialog>
 
-  <!-- ============ MODAL: PAGO ============ -->
-  <dialog class="modal modal--wide" id="checkoutDialog" aria-labelledby="checkoutTitle">
+  <!-- ============ MODAL: PAGO (checkout) ============ -->
+  <dialog class="modal modal--checkout" id="checkoutDialog" aria-labelledby="checkoutTitle">
     <div class="modal__box">
       <button class="icon-btn modal__close" type="button" data-close aria-label="Cerrar"><svg class="ic"><use href="#i-close"/></svg></button>
-      <h2 id="checkoutTitle">Finalizar compra</h2>
 
       <div id="checkoutBody">
-        <ul class="summary" id="summaryList"></ul>
-        <div class="totals">
-          <div><span>Subtotal</span><span id="sumSub">$0.00</span></div>
-          <div><span>Envío</span><span id="sumShip">$0.00</span></div>
-          <div class="totals__total"><span>Total</span><strong id="sumTotal">$0.00</strong></div>
-        </div>
+        <header class="co__head">
+          <p class="eyebrow">Compra segura</p>
+          <h2 id="checkoutTitle">Finalizar compra</h2>
+          <ol class="co__steps" aria-label="Pasos de la compra">
+            <li class="is-done">Carrito</li>
+            <li class="is-now" aria-current="step">Datos y pago</li>
+            <li>Confirmación</li>
+          </ol>
+        </header>
 
-        <form id="checkoutForm" novalidate>
-          <label for="coName">Nombre completo</label>
-          <input id="coName" type="text" autocomplete="name" required>
-          <label for="coPhone">Teléfono</label>
-          <input id="coPhone" type="tel" autocomplete="tel" required>
-          <label for="coAddress">Dirección de entrega</label>
-          <input id="coAddress" type="text" autocomplete="street-address" required>
-          <label for="coPay">Método de pago</label>
-          <select id="coPay">
-            <option>Tarjeta de crédito o débito</option>
-            <option>Pago contra entrega</option>
-            <option>Transferencia bancaria</option>
-          </select>
-          <small class="hint">Demostración: no se realiza ningún cobro y no se guardan datos de tarjeta.</small>
-          <p class="form-error" id="checkoutError" role="alert"></p>
-          <button class="btn btn--primary btn--block" type="submit">Confirmar pedido</button>
-        </form>
+        <div class="co">
+          <form class="co__form" id="checkoutForm" novalidate autocomplete="on">
+
+            <fieldset class="co__block">
+              <legend><span class="co__num">1</span> Contacto</legend>
+              <div class="co__grid">
+                <div class="co__field co__field--full">
+                  <label for="coEmail">Correo electrónico</label>
+                  <input id="coEmail" type="email" autocomplete="email" inputmode="email" placeholder="tu@correo.com" required>
+                  <small class="hint">Aquí te enviaremos la confirmación de tu pedido.</small>
+                </div>
+                <div class="co__field">
+                  <label for="coName">Nombre completo</label>
+                  <input id="coName" type="text" autocomplete="name" placeholder="Nombre y apellido" required>
+                </div>
+                <div class="co__field">
+                  <label for="coPhone">Teléfono / WhatsApp</label>
+                  <input id="coPhone" type="tel" autocomplete="tel" inputmode="tel" placeholder="+503 7000 0000" required>
+                </div>
+              </div>
+            </fieldset>
+
+            <fieldset class="co__block">
+              <legend><span class="co__num">2</span> Dirección de entrega</legend>
+              <div class="co__grid">
+                <div class="co__field">
+                  <label for="coCountry">País</label>
+                  <select id="coCountry" autocomplete="country-name"><option>El Salvador</option></select>
+                </div>
+                <div class="co__field">
+                  <label for="coDept">Departamento</label>
+                  <select id="coDept" autocomplete="address-level1" required>
+                    <option value="">Selecciona…</option>
+                    <option>Ahuachapán</option><option>Cabañas</option><option>Chalatenango</option>
+                    <option>Cuscatlán</option><option>La Libertad</option><option>La Paz</option>
+                    <option>La Unión</option><option>Morazán</option><option>San Miguel</option>
+                    <option>San Salvador</option><option>San Vicente</option><option>Santa Ana</option>
+                    <option>Sonsonate</option><option>Usulután</option>
+                  </select>
+                </div>
+                <div class="co__field">
+                  <label for="coCity">Municipio / ciudad</label>
+                  <input id="coCity" type="text" autocomplete="address-level2" required>
+                </div>
+                <div class="co__field">
+                  <label for="coZip">Código postal <span class="opt">(opcional)</span></label>
+                  <input id="coZip" type="text" autocomplete="postal-code" inputmode="numeric" maxlength="8">
+                </div>
+                <div class="co__field co__field--full">
+                  <label for="coAddress">Dirección</label>
+                  <input id="coAddress" type="text" autocomplete="address-line1" placeholder="Colonia, calle, número de casa" required>
+                </div>
+                <div class="co__field co__field--full">
+                  <label for="coRef">Punto de referencia <span class="opt">(opcional)</span></label>
+                  <input id="coRef" type="text" placeholder="Ej. frente al parque, portón negro">
+                </div>
+              </div>
+            </fieldset>
+
+            <fieldset class="co__block">
+              <legend><span class="co__num">3</span> Método de pago</legend>
+
+              <div class="pay" role="radiogroup" aria-label="Método de pago">
+                <label class="pay__opt"><input type="radio" name="coPay" value="Tarjeta de crédito o débito" checked><span><strong>Tarjeta de crédito o débito</strong><small>Visa, Mastercard, American Express</small></span></label>
+                <label class="pay__opt"><input type="radio" name="coPay" value="Transferencia bancaria"><span><strong>Transferencia bancaria</strong><small>Te enviamos los datos para pagar</small></span></label>
+                <label class="pay__opt"><input type="radio" name="coPay" value="Pago contra entrega"><span><strong>Pago contra entrega</strong><small>Pagas en efectivo al recibir</small></span></label>
+              </div>
+
+              <div class="pay__panel" id="panelCard">
+                <div class="cardprev" aria-hidden="true">
+                  <span class="cardprev__brand" id="cpBrand">Tarjeta</span>
+                  <span class="cardprev__num" id="cpNum">•••• •••• •••• ••••</span>
+                  <span class="cardprev__row"><span id="cpName">NOMBRE APELLIDO</span><span id="cpExp">MM/AA</span></span>
+                </div>
+                <div class="co__grid">
+                  <div class="co__field co__field--full">
+                    <label for="coCard">Número de tarjeta</label>
+                    <input id="coCard" type="text" inputmode="numeric" autocomplete="cc-number" placeholder="0000 0000 0000 0000" maxlength="23">
+                  </div>
+                  <div class="co__field co__field--full">
+                    <label for="coCardName">Nombre en la tarjeta</label>
+                    <input id="coCardName" type="text" autocomplete="cc-name" placeholder="Como aparece en la tarjeta">
+                  </div>
+                  <div class="co__field">
+                    <label for="coExp">Vencimiento</label>
+                    <input id="coExp" type="text" inputmode="numeric" autocomplete="cc-exp" placeholder="MM/AA" maxlength="5">
+                  </div>
+                  <div class="co__field">
+                    <label for="coCvv">CVV</label>
+                    <input id="coCvv" type="password" inputmode="numeric" autocomplete="cc-csc" placeholder="•••" maxlength="4">
+                  </div>
+                </div>
+              </div>
+
+              <p class="pay__panel pay__info" id="panelTransfer" hidden>Al confirmar, te enviaremos por correo o WhatsApp los datos de la cuenta y el monto exacto. Tu pedido se prepara cuando recibamos el comprobante.</p>
+              <p class="pay__panel pay__info" id="panelCash" hidden>Pagarás en efectivo al recibir tu pedido. Ten el monto exacto a la mano para agilizar la entrega.</p>
+            </fieldset>
+
+            <fieldset class="co__block co__block--plain">
+              <div class="co__field">
+                <label for="coNotes">Notas para tu pedido <span class="opt">(opcional)</span></label>
+                <textarea id="coNotes" rows="2" maxlength="200" placeholder="¿Es un regalo? ¿Alguna indicación para la entrega?"></textarea>
+              </div>
+              <label class="check"><input type="checkbox" id="coTerms"><span>Acepto los términos de compra y la política de privacidad de Flor de Luna.</span></label>
+            </fieldset>
+
+            <p class="form-error" id="checkoutError" role="alert"></p>
+            <button class="btn btn--primary btn--block co__submit" type="submit" id="coSubmit">Confirmar pedido</button>
+            <p class="hint co__demo">Demostración: no se realiza ningún cobro y no se guardan datos de tarjeta.</p>
+          </form>
+
+          <aside class="co__aside" aria-label="Resumen de tu pedido">
+            <h3>Tu pedido</h3>
+            <ul class="osum" id="summaryList"></ul>
+            <div class="totals">
+              <div><span>Subtotal</span><span id="sumSub">$0.00</span></div>
+              <div><span>Envío</span><span id="sumShip">$0.00</span></div>
+              <div class="totals__total"><span>Total</span><strong id="sumTotal">$0.00</strong></div>
+            </div>
+            <p class="co__ship" id="sumShipNote"></p>
+            <ul class="co__trust">
+              <li>Envío gratis en compras desde $60</li>
+              <li>Fragancias originales Flor de Luna</li>
+              <li>¿Dudas? Escríbenos en la sección Contacto</li>
+            </ul>
+          </aside>
+        </div>
       </div>
 
       <div class="done" id="checkoutDone" hidden>
         <svg class="done__moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M15.5 3.5A9 9 0 1 0 20.5 15 7.5 7.5 0 0 1 15.5 3.5z"/></svg>
         <h3>¡Gracias por tu compra!</h3>
-        <p class="muted">Tu pedido <strong id="doneId"></strong> fue registrado. Te contactaremos por WhatsApp o correo para coordinar la entrega.</p>
+        <p class="muted">Tu pedido <strong id="doneId"></strong> fue registrado. Enviaremos la confirmación a <strong id="doneMail"></strong> y te contactaremos para coordinar la entrega.</p>
+        <p class="done__total" id="doneTotal"></p>
         <button class="btn btn--primary" type="button" data-close>Seguir explorando</button>
       </div>
     </div>

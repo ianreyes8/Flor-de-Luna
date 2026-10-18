@@ -453,24 +453,91 @@
     requireAuth('Inicia sesión o crea una cuenta para pagar tus productos.', openCheckout);
   });
 
-  function openCheckout() {
-    if (!state.cart.length) { toast('Tu carrito está vacío.'); return; }
-    const u = currentUser();
-    if (!u) return;
+  const payRadios = $$('input[name="coPay"]');
+  const payMethod = () => (payRadios.find(r => r.checked) || payRadios[0]).value;
+  const cardFields = ['#coCard', '#coCardName', '#coExp', '#coCvv'];
+
+  function syncPayPanels() {
+    const m = payMethod();
+    $('#panelCard').hidden = m !== 'Tarjeta de crédito o débito';
+    $('#panelTransfer').hidden = m !== 'Transferencia bancaria';
+    $('#panelCash').hidden = m !== 'Pago contra entrega';
+  }
+  payRadios.forEach(r => r.addEventListener('change', syncPayPanels));
+
+  /* Tarjeta: formato en vivo, marca y validación (algoritmo de Luhn). Nada se guarda. */
+  const cardBrand = d => /^4/.test(d) ? 'Visa' : /^(5[1-5]|2[2-7])/.test(d) ? 'Mastercard' : /^3[47]/.test(d) ? 'American Express' : 'Tarjeta';
+  const luhn = d => {
+    let sum = 0, alt = false;
+    for (let i = d.length - 1; i >= 0; i--) {
+      let n = +d[i];
+      if (alt) { n *= 2; if (n > 9) n -= 9; }
+      sum += n; alt = !alt;
+    }
+    return d.length > 0 && sum % 10 === 0;
+  };
+  function formatCard() {
+    const el = $('#coCard');
+    const d = el.value.replace(/\D/g, '').slice(0, 19);
+    const amex = /^3[47]/.test(d);
+    el.value = (amex ? [d.slice(0, 4), d.slice(4, 10), d.slice(10, 15)] : d.match(/.{1,4}/g) || []).filter(Boolean).join(' ');
+    $('#cpNum').textContent = el.value || '•••• •••• •••• ••••';
+    $('#cpBrand').textContent = cardBrand(d);
+  }
+  $('#coCard').addEventListener('input', formatCard);
+  $('#coCardName').addEventListener('input', e => { $('#cpName').textContent = e.target.value.trim().toUpperCase() || 'NOMBRE APELLIDO'; });
+  $('#coExp').addEventListener('input', e => {
+    let d = e.target.value.replace(/\D/g, '').slice(0, 4);
+    if (d.length >= 3) d = d.slice(0, 2) + '/' + d.slice(2);
+    e.target.value = d;
+    $('#cpExp').textContent = d || 'MM/AA';
+  });
+  $('#coCvv').addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4); });
+  $('#coZip').addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, ''); });
+
+  function expiryOk(v) {
+    const m = /^(\d{2})\/(\d{2})$/.exec(v);
+    if (!m) return false;
+    const mm = +m[1], yy = 2000 + +m[2], now = new Date();
+    if (mm < 1 || mm > 12) return false;
+    return yy > now.getFullYear() || (yy === now.getFullYear() && mm >= now.getMonth() + 1);
+  }
+
+  function renderCheckoutSummary() {
     const sub = cartSubtotal(), ship = shippingFor(sub);
     $('#summaryList').innerHTML = state.cart.map(i => {
       const p = byId(i.id);
-      return `<li><span>${p.name} × ${i.qty}</span><span>${money(p.price * i.qty)}</span></li>`;
+      return `<li>
+        <span class="osum__img"><img src="${esc(productImage(p))}" alt="" width="56" height="66"><span class="osum__qty" aria-label="Cantidad">${i.qty}</span></span>
+        <span><span class="osum__name">${esc(p.name)}</span><span class="osum__meta">${p.ml} ml · ${money(p.price)} c/u</span></span>
+        <span>${money(p.price * i.qty)}</span>
+      </li>`;
     }).join('');
     $('#sumSub').textContent = money(sub);
     $('#sumShip').textContent = ship ? money(ship) : 'Gratis';
     $('#sumTotal').textContent = money(sub + ship);
+    $('#sumShipNote').textContent = ship
+      ? `Te faltan ${money(FREE_SHIP - sub)} para tener envío gratis.`
+      : 'Tu pedido tiene envío gratis.';
+    $('#coSubmit').textContent = `Confirmar pedido · ${money(sub + ship)}`;
+  }
+
+  function openCheckout() {
+    if (!state.cart.length) { toast('Tu carrito está vacío.'); return; }
+    const u = currentUser();
+    if (!u) return;
     $('#checkoutForm').reset();
+    $('#coEmail').value = u.email;
     $('#coName').value = u.name;
+    ['#cpNum', '#cpName', '#cpExp', '#cpBrand'].forEach((sel, i) => { $(sel).textContent = ['•••• •••• •••• ••••', 'NOMBRE APELLIDO', 'MM/AA', 'Tarjeta'][i]; });
+    $$('#checkoutForm [aria-invalid]').forEach(el => el.removeAttribute('aria-invalid'));
+    syncPayPanels();
+    renderCheckoutSummary();
     $('#checkoutError').textContent = '';
     $('#checkoutBody').hidden = false;
     $('#checkoutDone').hidden = true;
     if (!checkoutDialog.open) checkoutDialog.showModal();
+    $('#checkoutDialog .modal__box').scrollTop = 0;
   }
 
   $('#checkoutForm').addEventListener('submit', e => {
@@ -478,33 +545,69 @@
     const u = currentUser();
     const err = $('#checkoutError');
     if (!u) { checkoutDialog.close(); openAuth('Tu sesión terminó. Inicia sesión para continuar.', openCheckout); return; }
-    const name = $('#coName').value.trim();
-    const phone = $('#coPhone').value.trim();
-    const address = $('#coAddress').value.trim();
-    if (name.length < 3) { err.textContent = 'Escribe tu nombre completo.'; return; }
-    if (phone.replace(/\D/g, '').length < 8) { err.textContent = 'Escribe un teléfono válido.'; return; }
-    if (address.length < 8) { err.textContent = 'Escribe una dirección de entrega más completa.'; return; }
+    if (!state.cart.length) { checkoutDialog.close(); toast('Tu carrito está vacío.'); return; }
+
+    $$('#checkoutForm [aria-invalid]').forEach(el => el.removeAttribute('aria-invalid'));
+    const v = sel => $(sel).value.trim();
+    const method = payMethod();
+    const checks = [
+      ['#coEmail', !EMAIL_RE.test(v('#coEmail')), 'Escribe un correo válido.'],
+      ['#coName', v('#coName').length < 3, 'Escribe tu nombre completo.'],
+      ['#coPhone', v('#coPhone').replace(/\D/g, '').length < 8 || !/^[\d\s+\-().]+$/.test(v('#coPhone')), 'Escribe un teléfono válido.'],
+      ['#coDept', !v('#coDept'), 'Selecciona tu departamento.'],
+      ['#coCity', v('#coCity').length < 3, 'Escribe tu municipio o ciudad.'],
+      ['#coAddress', v('#coAddress').length < 8, 'Escribe una dirección de entrega más completa.']
+    ];
+    if (method === 'Tarjeta de crédito o débito') {
+      const digits = v('#coCard').replace(/\D/g, '');
+      checks.push(
+        ['#coCard', digits.length < 13 || !luhn(digits), 'El número de tarjeta no es válido.'],
+        ['#coCardName', v('#coCardName').length < 3, 'Escribe el nombre que aparece en la tarjeta.'],
+        ['#coExp', !expiryOk(v('#coExp')), 'La fecha de vencimiento no es válida.'],
+        ['#coCvv', !/^\d{3,4}$/.test(v('#coCvv')), 'Escribe el código de seguridad (CVV).']
+      );
+    }
+    checks.push(['#coTerms', !$('#coTerms').checked, 'Debes aceptar los términos de compra para continuar.']);
+
+    const bad = checks.find(c => c[1]);
+    if (bad) {
+      const el = $(bad[0]);
+      if (el.type !== 'checkbox') el.setAttribute('aria-invalid', 'true');
+      err.textContent = bad[2];
+      el.focus();
+      return;
+    }
+    err.textContent = '';
 
     const sub = cartSubtotal(), ship = shippingFor(sub);
     const order = {
       id: 'FDL-' + Date.now().toString(36).toUpperCase(),
       email: u.email,
+      contactEmail: v('#coEmail'),
       date: new Date().toISOString(),
       items: state.cart.map(i => ({ id: i.id, name: byId(i.id).name, qty: i.qty, price: byId(i.id).price })),
       shipping: ship,
       total: sub + ship,
-      address,
-      pay: $('#coPay').value
+      customer: { name: v('#coName'), phone: v('#coPhone') },
+      address: [v('#coAddress'), v('#coCity'), v('#coDept'), $('#coCountry').value].join(', '),
+      zip: v('#coZip'),
+      reference: v('#coRef'),
+      notes: v('#coNotes'),
+      pay: method /* nunca se guardan datos de tarjeta */
     };
     const orders = store.get(K.orders, []);
     orders.push(order);
     store.set(K.orders, orders);
 
+    cardFields.forEach(sel => { $(sel).value = ''; });
     state.cart = [];
     saveCart(); renderCart();
     $('#doneId').textContent = order.id;
+    $('#doneMail').textContent = order.contactEmail;
+    $('#doneTotal').textContent = money(order.total);
     $('#checkoutBody').hidden = true;
     $('#checkoutDone').hidden = false;
+    $('#checkoutDialog .modal__box').scrollTop = 0;
   });
 
   /* ---------- Pedidos ---------- */
