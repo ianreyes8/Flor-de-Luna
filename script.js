@@ -1,6 +1,6 @@
 /* =========================================================
    Flor de Luna — lógica de la tienda
-   El carrito y los favoritos se guardan localmente en el navegador.
+   La cuenta, el carrito, los favoritos y los pedidos se guardan en el navegador.
    ========================================================= */
 (() => {
   'use strict';
@@ -11,7 +11,9 @@
   const norm = s => String(s).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase().trim();
   const esc = s => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]{2,}$/;
-  const K = { cart: 'fdl_cart', favorites: 'fdl_favorites', theme: 'fdl_theme' };
+  const NAME_RE = /^\p{L}+(?:\s+\p{L}+)*$/u;
+
+  const K = { cart: 'fdl_cart', user: 'fdl_user', favorites: 'fdl_favorites', orders: 'fdl_orders', theme: 'fdl_theme' };
   const store = {
     get(k, d) { try { const v = localStorage.getItem(k); return v ? JSON.parse(v) : d; } catch { return d; } },
     set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* sin almacenamiento */ } }
@@ -52,16 +54,22 @@
   /* ---------- Estado ---------- */
   const state = {
     cart: sanitizeCart(store.get(K.cart, [])),
+    user: sanitizeUser(store.get(K.user, null)),
     favorites: sanitizeFavorites(store.get(K.favorites, [])),
     filter: 'Todos',
     query: ''
   };
+  let pendingAction = null;
 
   function sanitizeCart(raw) {
     if (!Array.isArray(raw)) return [];
     return raw
       .filter(i => i && byId(i.id))
       .map(i => ({ id: i.id, qty: Math.min(MAX_QTY, Math.max(1, parseInt(i.qty, 10) || 1)) }));
+  }
+  function sanitizeUser(raw) {
+    if (!raw || typeof raw.name !== 'string' || typeof raw.email !== 'string' || !EMAIL_RE.test(raw.email)) return null;
+    return { name: raw.name.trim(), email: raw.email.trim().toLowerCase() };
   }
   function sanitizeFavorites(raw) {
     return Array.isArray(raw) ? raw.filter(id => PRODUCTS.some(product => product.id === id)) : [];
@@ -91,19 +99,136 @@
     try { localStorage.setItem(K.theme, next); } catch { /* ignorar */ }
   });
 
-  const userWrap = $('.user-wrap');
-  if (userWrap) userWrap.hidden = true;
+  /* ---------- Sesión ---------- */
+  const currentUser = () => state.user;
+
+  const authDialog = $('#authDialog');
+
+  $$('[data-password-toggle]').forEach(button => {
+    button.addEventListener('click', () => {
+      const input = document.getElementById(button.getAttribute('aria-controls'));
+      const visible = input.type === 'password';
+      input.type = visible ? 'text' : 'password';
+      button.setAttribute('aria-pressed', String(visible));
+      button.setAttribute('aria-label', visible ? 'Ocultar contraseña' : 'Mostrar contraseña');
+    });
+  });
+
+  function setAuthTab(tab) {
+    const login = tab === 'login';
+    $('#tabLogin').setAttribute('aria-selected', String(login));
+    $('#tabRegister').setAttribute('aria-selected', String(!login));
+    $('#loginForm').hidden = !login;
+    $('#registerForm').hidden = login;
+    $('#authTitle').textContent = login ? 'Bienvenida/o de nuevo' : 'Crea tu cuenta';
+    $('#loginError').textContent = '';
+    $('#registerError').textContent = ''; } $$('[data-tab]').forEach(b => b.addEventListener('click', () => setAuthTab(b.dataset.tab)));
+
+  function openAuth(note, after, tab = 'login') {
+    pendingAction = after || null;
+    const n = $('#authNote');
+    n.textContent = note || '';
+    n.hidden = !note;
+    setAuthTab(tab);
+    if (!authDialog.open) authDialog.showModal();
+  }
+  authDialog.addEventListener('close', () => { if (!state.user) pendingAction = null; });
+
+  function requireAuth(note, after) {
+    if (currentUser()) { after && after(); return true; }
+    openAuth(note, after);
+    return false;
+  }
+
+  function startSession(user) {
+    state.user = user;
+    store.set(K.user, user);
+    const act = pendingAction;
+    pendingAction = null;
+    authDialog.close();
+    $('#loginForm').reset();
+    $('#registerForm').reset();
+    renderUser();
+    renderFilters();
+    renderGrid();
+    toast(`¡Hola, ${user.name.split(' ')[0]}!`);
+    if (act) act();
+  }
+
+  $('#loginForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const err = $('#loginError');
+    err.textContent = '';
+    const email = $('#loginEmail').value.trim().toLowerCase();
+    const pw = $('#loginPass').value;
+    if (!EMAIL_RE.test(email) || !pw) { err.textContent = 'Ingresa tu correo y tu contraseña.'; return; }
+    const savedUser = store.get(K.user, null);
+    const name = savedUser && savedUser.email === email
+      ? savedUser.name
+      : email.split('@')[0].replace(/[._-]+/g, ' ').replace(/\b\w/g, letter => letter.toUpperCase());
+    startSession({ name, email });
+  });
+
+  $('#registerForm').addEventListener('submit', e => {
+    e.preventDefault();
+    const err = $('#registerError');
+    err.textContent = '';
+    const name = $('#regName').value.trim().replace(/\s+/g, ' ').normalize('NFC');
+    const email = $('#regEmail').value.trim().toLowerCase();
+    const pw = $('#regPass').value;
+    const pw2 = $('#regPass2').value;
+
+    if (name.length < 2) { err.textContent = 'Escribe tu nombre.'; return; }
+    if (!NAME_RE.test(name)) { err.textContent = 'El nombre solo puede contener letras y espacios.'; return; }
+    if (!EMAIL_RE.test(email)) { err.textContent = 'Escribe un correo válido.'; return; }
+    if (pw.length < 8 || !/[A-Za-z]/.test(pw) || !/\d/.test(pw)) { err.textContent = 'La contraseña debe tener 8 caracteres o más, con letras y números.'; return; }
+    if (pw !== pw2) { err.textContent = 'Las contraseñas no coinciden.'; return; }
+
+    startSession({ name, email });
+  });
+
+  function logout() {
+    state.user = null;
+    store.set(K.user, null);
+    if (state.filter === 'Favoritos') state.filter = 'Todos';
+    closeUserMenu();
+    renderUser();
+    renderFilters();
+    renderGrid();
+    toast('Sesión cerrada.');
+  }
+  $('#btnLogout').addEventListener('click', logout);
+
+  /* Menú de usuario */
+  const userMenu = $('#userMenu'), btnUser = $('#btnUser');
+  function closeUserMenu() { userMenu.hidden = true; btnUser.setAttribute('aria-expanded', 'false'); }
+  function renderUser() {
+    const u = currentUser();
+    $('#userDot').hidden = !u;
+    btnUser.setAttribute('aria-label', u ? `Cuenta de ${u.name}` : 'Iniciar sesión');
+    if (u) { $('#userName').textContent = u.name; $('#userMail').textContent = u.email; }
+    else closeUserMenu();
+  }
+  btnUser.addEventListener('click', () => {
+    if (!currentUser()) { openAuth(null, null); return; }
+    const open = userMenu.hidden;
+    closeCart();
+    userMenu.hidden = !open;
+    btnUser.setAttribute('aria-expanded', String(open));
+  });
 
   /* ---------- Favoritos ---------- */
   const getFavs = () => state.favorites;
   function toggleFav(id) {
-    const added = !state.favorites.includes(id);
-    state.favorites = added
-      ? [...state.favorites, id]
-      : state.favorites.filter(favorite => favorite !== id);
-    store.set(K.favorites, state.favorites);
-    toast(added ? 'Guardado en favoritos.' : 'Quitado de favoritos.');
-    renderGrid();
+    requireAuth('Inicia sesión para guardar tus perfumes favoritos.', () => {
+      const added = !state.favorites.includes(id);
+      state.favorites = added
+        ? [...state.favorites, id]
+        : state.favorites.filter(favorite => favorite !== id);
+      store.set(K.favorites, state.favorites);
+      toast(added ? 'Guardado en favoritos.' : 'Quitado de favoritos.');
+      renderGrid();
+    });
   }
 
   /* ---------- Catálogo: filtros, búsqueda y render ---------- */
@@ -117,7 +242,9 @@
   $('#filters').addEventListener('click', e => {
     const b = e.target.closest('[data-filter]');
     if (!b) return;
-    setFilter(b.dataset.filter);
+    const f = b.dataset.filter;
+    if (f === 'Favoritos') requireAuth('Inicia sesión para ver tus favoritos.', () => setFilter('Favoritos'));
+    else setFilter(f);
   });
 
   function cardHTML(p, i) {
@@ -182,7 +309,7 @@
   const searchbar = $('#searchbar'), searchInput = $('#searchInput'), btnSearch = $('#btnSearch');
   let scrolledForSearch = false;
   function openSearch() {
-    closeCart();
+    closeCart(); closeUserMenu();
     searchbar.hidden = false;
     btnSearch.setAttribute('aria-expanded', 'true');
     searchInput.focus();
@@ -213,6 +340,7 @@
   const saveCart = () => store.set(K.cart, state.cart);
 
   function openCart() {
+    closeUserMenu();
     cartEl.hidden = false;
     document.body.classList.add('cart-open');
     btnCart.setAttribute('aria-expanded', 'true');
@@ -295,54 +423,179 @@
   });
   $('#btnClearCart').addEventListener('click', () => { state.cart = []; saveCart(); renderCart(); });
 
-  /* ---------- Checkout estático ---------- */
+  /* ---------- Pago (requiere sesión) ---------- */
   const checkoutDialog = $('#checkoutDialog');
 
-  function renderCheckoutSummary() {
-    const subtotal = cartSubtotal(), shipping = shippingFor(subtotal);
-    $('#summaryList').innerHTML = state.cart.map(item => {
-      const product = byId(item.id);
-      return `<li>
-        <span class="osum__img"><img src="${esc(productImage(product))}" alt="" width="56" height="66"><span class="osum__qty" aria-label="Cantidad">${item.qty}</span></span>
-        <span><span class="osum__name">${esc(product.name)}</span><span class="osum__meta">${product.ml} ml · ${money(product.price)} c/u</span></span>
-        <span>${money(product.price * item.qty)}</span>
-      </li>`;
-    }).join('');
-    $('#sumSub').textContent = money(subtotal);
-    $('#sumShip').textContent = shipping ? money(shipping) : 'Gratis';
-    $('#sumTotal').textContent = money(subtotal + shipping);
-    $('#sumShipNote').textContent = shipping
-      ? `Te faltan ${money(FREE_SHIP - subtotal)} para tener envío gratis.`
-      : 'Tu pedido tiene envío gratis.';
-    $('#coSubmit').textContent = `Confirmar pedido · ${money(subtotal + shipping)}`;
+  $('#btnCheckout').addEventListener('click', () => {
+    closeCart();
+    requireAuth('Inicia sesión o crea una cuenta para pagar tus productos.', openCheckout);
+  });
+
+  const payRadios = $$('input[name="coPay"]');
+  const payMethod = () => (payRadios.find(r => r.checked) || payRadios[0]).value;
+  const cardFields = ['#coCard', '#coCardName', '#coExp', '#coCvv'];
+
+  function syncPayPanels() {
+    const m = payMethod();
+    $('#panelCard').hidden = m !== 'Tarjeta de crédito o débito';
+    $('#panelTransfer').hidden = m !== 'Transferencia bancaria';
+    $('#panelCash').hidden = m !== 'Pago contra entrega';
+  }
+  payRadios.forEach(r => r.addEventListener('change', syncPayPanels));
+
+  /* Tarjeta: formato en vivo, marca y validación (algoritmo de Luhn). Nada se guarda. */
+  const cardBrand = d => /^4/.test(d) ? 'Visa' : /^(5[1-5]|2[2-7])/.test(d) ? 'Mastercard' : /^3[47]/.test(d) ? 'American Express' : 'Tarjeta';
+  const luhn = d => {
+    let sum = 0, alt = false;
+    for (let i = d.length - 1; i >= 0; i--) {
+      let n = +d[i];
+      if (alt) { n *= 2; if (n > 9) n -= 9; }
+      sum += n; alt = !alt;
+    }
+    return d.length > 0 && sum % 10 === 0;
+  };
+  function formatCard() {
+    const el = $('#coCard');
+    const d = el.value.replace(/\D/g, '').slice(0, 19);
+    const amex = /^3[47]/.test(d);
+    el.value = (amex ? [d.slice(0, 4), d.slice(4, 10), d.slice(10, 15)] : d.match(/.{1,4}/g) || []).filter(Boolean).join(' ');
+    $('#cpNum').textContent = el.value || '•••• •••• •••• ••••';
+    $('#cpBrand').textContent = cardBrand(d);
+  }
+  $('#coCard').addEventListener('input', formatCard);
+  $('#coCardName').addEventListener('input', e => { $('#cpName').textContent = e.target.value.trim().toUpperCase() || 'NOMBRE APELLIDO'; });
+  $('#coExp').addEventListener('input', e => {
+    let d = e.target.value.replace(/\D/g, '').slice(0, 4);
+    if (d.length >= 3) d = d.slice(0, 2) + '/' + d.slice(2);
+    e.target.value = d;
+    $('#cpExp').textContent = d || 'MM/AA';
+  });
+  $('#coCvv').addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, '').slice(0, 4); });
+  $('#coZip').addEventListener('input', e => { e.target.value = e.target.value.replace(/\D/g, ''); });
+
+  function expiryOk(v) {
+    const m = /^(\d{2})\/(\d{2})$/.exec(v);
+    if (!m) return false;
+    const mm = +m[1], yy = 2000 + +m[2], now = new Date();
+    if (mm < 1 || mm > 12) return false;
+    return yy > now.getFullYear() || (yy === now.getFullYear() && mm >= now.getMonth() + 1);
   }
 
-  $('#btnCheckout').addEventListener('click', () => {
-    if (!state.cart.length) return;
+  function renderCheckoutSummary() {
+    const sub = cartSubtotal(), ship = shippingFor(sub);
+    $('#summaryList').innerHTML = state.cart.map(i => {
+      const p = byId(i.id);
+      return `<li>
+        <span class="osum__img"><img src="${esc(productImage(p))}" alt="" width="56" height="66"><span class="osum__qty" aria-label="Cantidad">${i.qty}</span></span>
+        <span><span class="osum__name">${esc(p.name)}</span><span class="osum__meta">${p.ml} ml · ${money(p.price)} c/u</span></span>
+        <span>${money(p.price * i.qty)}</span>
+      </li>`;
+    }).join('');
+    $('#sumSub').textContent = money(sub);
+    $('#sumShip').textContent = ship ? money(ship) : 'Gratis';
+    $('#sumTotal').textContent = money(sub + ship);
+    $('#sumShipNote').textContent = ship
+      ? `Te faltan ${money(FREE_SHIP - sub)} para tener envío gratis.`
+      : 'Tu pedido tiene envío gratis.';
+    $('#coSubmit').textContent = `Confirmar pedido · ${money(sub + ship)}`;
+  }
+
+  function openCheckout() {
+    if (!state.cart.length) { toast('Tu carrito está vacío.'); return; }
+    const u = currentUser();
+    if (!u) return;
     $('#checkoutForm').reset();
+    $('#coEmail').value = u.email;
+    $('#coName').value = u.name;
+    ['#cpNum', '#cpName', '#cpExp', '#cpBrand'].forEach((sel, i) => { $(sel).textContent = ['•••• •••• •••• ••••', 'NOMBRE APELLIDO', 'MM/AA', 'Tarjeta'][i]; });
+    $$('#checkoutForm [aria-invalid]').forEach(el => el.removeAttribute('aria-invalid'));
+    syncPayPanels();
+    renderCheckoutSummary();
     $('#checkoutError').textContent = '';
     $('#checkoutBody').hidden = false;
     $('#checkoutDone').hidden = true;
-    renderCheckoutSummary();
-    checkoutDialog.showModal();
-  });
+    if (!checkoutDialog.open) checkoutDialog.showModal();
+    $('#checkoutDialog .modal__box').scrollTop = 0;
+  }
 
   $('#checkoutForm').addEventListener('submit', e => {
     e.preventDefault();
-    const form = e.currentTarget;
-    const error = $('#checkoutError');
-    if (!form.checkValidity()) { form.reportValidity(); return; }
-    if (!$('#coTerms').checked) {
-      error.textContent = 'Debes aceptar los términos de compra para continuar.';
+    const u = currentUser();
+    const err = $('#checkoutError');
+    if (!u) { checkoutDialog.close(); openAuth('Tu sesión terminó. Inicia sesión para continuar.', openCheckout); return; }
+    if (!state.cart.length) { checkoutDialog.close(); toast('Tu carrito está vacío.'); return; }
+
+    $$('#checkoutForm [aria-invalid]').forEach(el => el.removeAttribute('aria-invalid'));
+    const v = sel => $(sel).value.trim();
+    const method = payMethod();
+    const checks = [
+      ['#coEmail', !EMAIL_RE.test(v('#coEmail')), 'Escribe un correo válido.'],
+      ['#coName', v('#coName').length < 3, 'Escribe tu nombre completo.'],
+      ['#coPhone', v('#coPhone').replace(/\D/g, '').length < 8 || !/^[\d\s+\-().]+$/.test(v('#coPhone')), 'Escribe un teléfono válido.'],
+      ['#coDept', !v('#coDept'), 'Selecciona tu departamento.'],
+      ['#coCity', v('#coCity').length < 3, 'Escribe tu municipio o ciudad.'],
+      ['#coAddress', v('#coAddress').length < 8, 'Escribe una dirección de entrega más completa.']
+    ];
+    if (method === 'Tarjeta de crédito o débito') {
+      const digits = v('#coCard').replace(/\D/g, '');
+      checks.push(
+        ['#coCard', digits.length < 13 || !luhn(digits), 'El número de tarjeta no es válido.'],
+        ['#coCardName', v('#coCardName').length < 3, 'Escribe el nombre que aparece en la tarjeta.'],
+        ['#coExp', !expiryOk(v('#coExp')), 'La fecha de vencimiento no es válida.'],
+        ['#coCvv', !/^\d{3,4}$/.test(v('#coCvv')), 'Escribe el código de seguridad (CVV).']
+      );
+    }
+    checks.push(['#coTerms', !$('#coTerms').checked, 'Debes aceptar los términos de compra para continuar.']);
+
+    const bad = checks.find(c => c[1]);
+    if (bad) {
+      const el = $(bad[0]);
+      if (el.type !== 'checkbox') el.setAttribute('aria-invalid', 'true');
+      err.textContent = bad[2];
+      el.focus();
       return;
     }
-    error.textContent = '';
-    $('#doneTotal').textContent = money(cartSubtotal() + shippingFor(cartSubtotal()));
+    err.textContent = '';
+
+    const order = {
+      codigo: `FDL-${Date.now()}`,
+      fecha_pedido: new Date().toISOString(),
+      email: v('#coEmail'),
+      items: state.cart.map(item => ({ name: byId(item.id).name, qty: item.qty })),
+      total: cartSubtotal() + shippingFor(cartSubtotal()),
+      payment: method
+    };
+    const orders = store.get(K.orders, []);
+    store.set(K.orders, [...(Array.isArray(orders) ? orders : []), order]);
+    cardFields.forEach(sel => { $(sel).value = ''; });
+    state.cart = [];
+    saveCart(); renderCart();
+    $('#doneId').textContent = order.codigo;
+    $('#doneMail').textContent = order.email;
+    $('#doneTotal').textContent = money(order.total);
     $('#checkoutBody').hidden = true;
     $('#checkoutDone').hidden = false;
-    state.cart = [];
-    saveCart();
-    renderCart();
+    $('#checkoutDialog .modal__box').scrollTop = 0;
+  });
+
+  /* ---------- Pedidos ---------- */
+  const ordersDialog = $('#ordersDialog');
+  $('#btnOrders').addEventListener('click', () => {
+    closeUserMenu();
+    const u = currentUser();
+    if (!u) return;
+    const list = $('#ordersList');
+    const orders = store.get(K.orders, []);
+    const userOrders = (Array.isArray(orders) ? orders : []).filter(order =>
+      order && order.email === u.email && Array.isArray(order.items)
+    );
+    list.innerHTML = userOrders.length ? userOrders.map(o => `
+      <article class="order">
+        <div class="order__head"><strong>${esc(o.codigo)}</strong><span>${new Date(o.fecha_pedido).toLocaleDateString('es-SV', { day: 'numeric', month: 'long', year: 'numeric' })}</span></div>
+        <ul>${o.items.map(i => `<li>${esc(i.name)} ×${i.qty}</li>`).join('')}</ul>
+        <p class="order__total">Total: ${money(o.total)}</p>
+      </article>`).join('') : '<p class="muted">Todavía no has realizado pedidos.</p>';
+    ordersDialog.showModal();
   });
 
   /* ---------- Diálogos: cerrar con X o clic fuera ---------- */
@@ -361,7 +614,6 @@
     if (msg.length < 10) { err.textContent = 'Cuéntanos un poco más en tu mensaje.'; return; }
     err.textContent = '';
     e.target.reset();
-    toast('Gracias por escribirnos.');
   });
 
   /* ---------- Navegación ---------- */
@@ -396,16 +648,19 @@
   document.addEventListener('click', e => {
     const path = e.composedPath();
     if (!cartEl.hidden && !path.includes(cartEl) && !path.includes(btnCart)) closeCart();
+    if (!userMenu.hidden && !path.includes(userMenu) && !path.includes(btnUser)) closeUserMenu();
   });
   document.addEventListener('keydown', e => {
     if (e.key !== 'Escape') return;
     if (!cartEl.hidden) { closeCart(); btnCart.focus(); }
+    else if (!userMenu.hidden) { closeUserMenu(); btnUser.focus(); }
     else if (!searchbar.hidden) closeSearch();
     else if (menu.classList.contains('open')) setMenu(false);
   });
 
   /* ---------- Inicio ---------- */
   $('#year').textContent = new Date().getFullYear();
+  renderUser();
   renderFilters();
   renderGrid();
   renderCart();
