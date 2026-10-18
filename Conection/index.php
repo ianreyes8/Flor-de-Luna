@@ -239,7 +239,10 @@ try {
             $reference = trim((string) ($data['reference'] ?? ''));
             $notes = trim((string) ($data['notes'] ?? ''));
 
-            if (!in_array($payment, $allowedPayments, true) || !filter_var($email, FILTER_VALIDATE_EMAIL)
+            $departments = ['Ahuachapán', 'Cabañas', 'Chalatenango', 'Cuscatlán', 'La Libertad', 'La Paz', 'La Unión',
+                'Morazán', 'San Miguel', 'San Salvador', 'San Vicente', 'Santa Ana', 'Sonsonate', 'Usulután'];
+
+            if (!in_array($department, $departments, true) || !in_array($payment, $allowedPayments, true) || !filter_var($email, FILTER_VALIDATE_EMAIL)
                 || strlen($name) < 3 || strlen($name) > 100 || strlen($phone) < 8 || strlen($phone) > 25 || strlen($department) < 2 || strlen($department) > 40
                 || strlen($city) < 3 || strlen($city) > 80 || strlen($address) < 8 || strlen($address) > 250 || strlen($zip) > 8
                 || strlen($reference) > 150 || strlen($notes) > 200) {

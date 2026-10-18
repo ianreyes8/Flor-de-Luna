@@ -27,7 +27,7 @@
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ action, ...payload })
         };
-    const response = await fetch(`api/index.php${payload === undefined ? `?action=${encodeURIComponent(action)}` : ''}`, options);
+    const response = await fetch(`Conection/index.php${payload === undefined ? `?action=${encodeURIComponent(action)}` : ''}`, options);
     let result;
     try { result = await response.json(); }
     catch { throw new Error('El servidor devolvió una respuesta no válida.'); }
