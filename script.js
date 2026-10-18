@@ -48,7 +48,7 @@
   ];
   const productImage = p => `Flor de luna/${p.image}`;
   const byId = id => PRODUCTS.find(p => p.id === id);
-  const FILTERS = ['Todos', 'Floral', 'Amaderado', 'Oriental', 'Fresco', 'Favoritos'];
+  const FILTERS = ['Todos', 'Floral', 'Oriental', 'Fresco', 'Favoritos'];
   const FREE_SHIP = 60, SHIP_COST = 4, MAX_QTY = 10;
 
   /* Frasco dibujado con SVG (original, sin imágenes externas) */

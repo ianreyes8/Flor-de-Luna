@@ -168,8 +168,14 @@ CREATE TABLE IF NOT EXISTS mensajes_contacto (
 INSERT IGNORE INTO categorias (id_categoria, nombre, descripcion) VALUES
   (1, 'Floral',    'Flores finas, delicado y luminoso.'),
   (2, 'Fresco',    'Ligero y natural, ideal para el día.'),
-  (3, 'Oriental',  'Vainilla y notas cálidas, envolvente.'),
-  (4, 'Amaderado', 'Notas de madera, profundo y elegante.');
+  (3, 'Oriental',  'Vainilla y notas cálidas, envolvente.');
+
+DELETE FROM categorias
+WHERE nombre = 'Amaderado'
+  AND NOT EXISTS (
+    SELECT 1 FROM productos
+    WHERE productos.id_categoria = categorias.id_categoria
+  );
 
 INSERT IGNORE INTO productos
   (id_producto, id_categoria, slug, nombre, presentacion_ml, precio, notas, descripcion, imagen, stock, activo) VALUES
