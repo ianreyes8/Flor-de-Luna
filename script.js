@@ -730,4 +730,4 @@
     renderCart();
   }
   initialize();
-})();
+})(); 
