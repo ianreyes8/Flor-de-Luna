@@ -1,4 +1,4 @@
-# Flor de Luna
+# Flor de Luna 🌸
 
 Catálogo web de perfumería hecho con HTML, CSS y JavaScript sin frameworks. La tienda funciona de forma estática, sin conexión a PHP ni a una base de datos.
 
